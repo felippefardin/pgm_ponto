@@ -60,16 +60,21 @@ if (!isset($_SESSION['adm_id'])) {
                 <i class="fa-solid fa-tower-broadcast"></i> Ponto ao Vivo
             </a>
         </div>
+
         <div class="col-md-3">
             <a href="auditoria.php" class="btn btn-warning text-white w-100 btn-dash">
                 <i class="fa-solid fa-shield-halved"></i> Auditoria
             </a>
         </div>
-
+<div class="col-md-3">
+        <a href="cadastrar_servidor.php" class="btn btn-dark w-100 btn-dash">
+            <i class="fa-solid fa-user-plus"></i> Cadastrar Servidor
+        </a>
+    </div>
         <div class="col-md-3">
-            <a href="cadastrar_servidor.php" class="btn btn-dark w-100 btn-dash">
-                <i class="fa-solid fa-user-plus"></i> Cadastrar Servidor
-            </a>
+            <a href="gerenciar_servidores.php" class="btn btn-dark w-100 btn-dash">
+    <i class="fa-solid fa-users-gear"></i> Gerenciar Servidores
+</a>
         </div>
         <div class="col-md-3">
             <a href="servidor_bloqueado.php" class="btn btn-danger w-100 btn-dash">
@@ -81,6 +86,11 @@ if (!isset($_SESSION['adm_id'])) {
                 <i class="fa-solid fa-map-location-dot"></i> Mapa
             </a>
         </div>
+        <div class="col-md-3">
+    <a href="servidores_arquivados.php" class="btn btn-outline-secondary w-100 btn-dash">
+        <i class="fa-solid fa-box-archive"></i> Arquivados
+    </a>
+</div>
         <div class="col-md-3">
             <a href="esqueci_pin.php" class="btn btn-outline-dark w-100 btn-dash">
                 <i class="fa-solid fa-key"></i> Esqueci PIN
