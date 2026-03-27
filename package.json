@@ -1,0 +1,7 @@
+{
+  "name": "pgm_ponto",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "php -S localhost:8080"
+  }
+}

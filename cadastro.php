@@ -5,15 +5,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome = $_POST['instituicao'];
     $email = $_POST['email'];
     $senha = password_hash($_POST['senha'], PASSWORD_DEFAULT);
-    $codigo = rand(100000, 999999); // Gera código de 6 dígitos
+    $codigo = rand(100000, 999999); // Gera o código
 
     $stmt = $pdo->prepare("INSERT INTO instituicoes (nome_instituicao, email, senha, codigo_verificacao) VALUES (?, ?, ?, ?)");
     
     if ($stmt->execute([$nome, $email, $senha, $codigo])) {
-        // AQUI ENTRARIA O DISPARO DE E-MAIL (PHPMailer)
-        // mail($email, "Seu Código PMG Ponto", "Seu código é: $codigo");
-        
-        header("Location: confirmar_codigo.php?email=$email");
+        // Como o mail() não funciona no XAMPP sem config, vamos apenas redirecionar
+        // Em produção, você usaria o PHPMailer aqui.
+        header("Location: confirmar_codigo.php?email=$email&debug_code=$codigo");
         exit();
     }
 }
