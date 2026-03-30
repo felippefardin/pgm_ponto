@@ -13,7 +13,8 @@ $cerca = $stmt->fetch();
     <meta charset="UTF-8">
     <title>Bater Ponto - PMG PONTO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <style>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+    <style>
         #video { width: 100%; max-width: 400px; border-radius: 15px; border: 5px solid #ccc; transform: scaleX(-1); }
         .area-bloqueada { display: none; }
         .btn-ponto { height: 80px; font-size: 1.2rem; font-weight: bold; }
@@ -27,30 +28,30 @@ $cerca = $stmt->fetch();
     <div id="status_gps" class="alert alert-warning">Verificando sua localização...</div>
 
     <div id="area_ponto" class="area-bloqueada">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <video id="video" autoplay></video>
-            <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
-            
-            <div class="mt-3">
-                <input type="text" id="matricula" class="form-control form-control-lg mb-3 text-center" placeholder="Digite sua Matrícula">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <video id="video" autoplay></video>
+                <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
+                
+                <div class="mt-3">
+                    <input type="text" id="matricula" class="form-control form-control-lg mb-3 text-center" placeholder="Digite sua Matrícula">
                 </div>
 
-            <div class="d-grid gap-2 d-md-block">
-                <button onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
-                <button onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
-                <button onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
+                <div class="d-grid gap-2 d-md-block">
+                    <button onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
+                    <button onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
+                    <button onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
-</div>
 
 <script>
     let userLat, userLng;
-    const centroLat = <?= $cerca['latitude'] ?>;
-    const centroLng = <?= $cerca['longitude'] ?>;
-    const raioPermitido = <?= $cerca['raio_metros'] ?>;
+    const centroLat = <?= $cerca['latitude'] ?? 0 ?>;
+    const centroLng = <?= $cerca['longitude'] ?? 0 ?>;
+    const raioPermitido = <?= $cerca['raio_metros'] ?? 100 ?>;
 
     // 1. Verificar GPS
     navigator.geolocation.getCurrentPosition(pos => {
@@ -69,12 +70,13 @@ $cerca = $stmt->fetch();
             document.getElementById('status_gps').innerText = "Fora da área permitida (" + Math.round(distancia) + "m de distância).";
         }
     }, err => {
-        alert("Erro ao obter GPS. Verifique as permissões do navegador.");
+        Swal.fire('Erro', 'Erro ao obter GPS. Verifique as permissões do navegador.', 'error');
     });
 
     function iniciarCamera() {
         navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => { document.getElementById('video').srcObject = stream; });
+            .then(stream => { document.getElementById('video').srcObject = stream; })
+            .catch(err => { Swal.fire('Erro', 'Não foi possível acessar a câmera.', 'error'); });
     }
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
@@ -88,28 +90,43 @@ $cerca = $stmt->fetch();
     }
 
     async function registrarPonto(tipo) {
-    const canvas = document.getElementById('canvas');
-    const video = document.getElementById('video');
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, 400, 300);
-    const fotoAtual = canvas.toDataURL('image/png');
+        const matricula = document.getElementById('matricula').value;
+        if (!matricula) return Swal.fire('Aviso', 'Por favor, digite sua matrícula.', 'warning');
 
-    const dados = new FormData();
-    dados.append('tipo', tipo);
-    dados.append('matricula', document.getElementById('matricula').value);
-    dados.append('foto', fotoAtual); // Foto capturada para comparação
-    dados.append('lat', userLat);
-    dados.append('lng', userLng);
+        // Captura a foto da webcam
+        const canvas = document.getElementById('canvas');
+        const video = document.getElementById('video');
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, 400, 300);
+        const fotoAtual = canvas.toDataURL('image/png');
 
-    const response = await fetch('processar_batida.php', { method: 'POST', body: dados });
-    const result = await response.json();
+        const dados = new FormData();
+        dados.append('tipo', tipo);
+        dados.append('matricula', matricula);
+        dados.append('foto', fotoAtual);
+        dados.append('lat', userLat);
+        dados.append('lng', userLng);
 
-    if (result.success) {
-        Swal.fire('Sucesso!', result.message, 'success');
-    } else {
-        Swal.fire('Erro de Biometria', result.message, 'error');
+        // Exibe carregamento enquanto processa biometria
+        Swal.fire({
+            title: 'Processando Biometria...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            const response = await fetch('processar_batida.php', { method: 'POST', body: dados });
+            const result = await response.json();
+
+            if (result.success) {
+                Swal.fire('Sucesso!', result.message, 'success');
+            } else {
+                Swal.fire('Acesso Negado', result.message, 'error');
+            }
+        } catch (error) {
+            Swal.fire('Erro', 'Erro na comunicação com o servidor.', 'error');
+        }
     }
-}
 </script>
 </body>
 </html>
