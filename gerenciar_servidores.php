@@ -13,7 +13,6 @@ if (isset($_GET['acao']) && isset($_GET['id'])) {
     header("Location: gerenciar_servidores.php");
 }
 
-// Busca todos os servidores (exceto os arquivados, se preferir)
 $stmt = $pdo->query("SELECT * FROM servidores WHERE status != 'arquivado' ORDER BY nome_completo ASC");
 $servidores = $stmt->fetchAll();
 ?>
@@ -23,7 +22,16 @@ $servidores = $stmt->fetchAll();
     <meta charset="UTF-8">
     <title>Gerenciar Servidores - PMG PONTO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        .cursor-pointer { cursor: pointer; }
+        .pin-box { 
+            display: inline-flex; 
+            align-items: center; 
+            min-width: 80px; 
+            justify-content: space-between;
+        }
+    </style>
 </head>
 <body class="bg-light">
 
@@ -37,7 +45,7 @@ $servidores = $stmt->fetchAll();
 <div class="container">
     <div class="card shadow">
         <div class="card-body">
-            <table class="table table-hover">
+            <table class="table table-hover align-middle">
                 <thead>
                     <tr>
                         <th>Nome</th>
@@ -52,14 +60,20 @@ $servidores = $stmt->fetchAll();
                     <tr>
                         <td><?= htmlspecialchars($s['nome_completo']) ?></td>
                         <td><?= htmlspecialchars($s['matricula']) ?></td>
-                        <td>****</td>
+                        <td>
+                            <div class="pin-box">
+                                <span id="pin-text-<?= $s['id'] ?>" style="font-family: monospace;">****</span>
+                                <i class="fa-solid fa-eye text-primary cursor-pointer ms-2" 
+                                   id="pin-btn-<?= $s['id'] ?>"
+                                   onclick="togglePin(<?= $s['id'] ?>, '<?= htmlspecialchars($s['pin']) ?>')">
+                                </i>
+                            </div>
+                        </td>
                         <td><span class="badge bg-info"><?= ucfirst($s['status']) ?></span></td>
                         <td>
                             <a href="editar_servidor.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-warning">Editar</a>
-                            
-                            <a href="?acao=arquivar&id=<?= $s['id'] ?>" class="btn btn-sm btn-secondary" onclick="return confirm('Arquivar servidor?')">Arquivar</a>
-                            
-                            <a href="?acao=excluir&id=<?= $s['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Excluir permanentemente?')">Excluir</a>
+                            <a href="?acao=arquivar&id=<?= $s['id'] ?>" class="btn btn-sm btn-secondary" onclick="return confirm('Arquivar?')">Arquivar</a>
+                            <a href="?acao=excluir&id=<?= $s['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Excluir?')">Excluir</a>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -68,5 +82,22 @@ $servidores = $stmt->fetchAll();
         </div>
     </div>
 </div>
+
+<script>
+function togglePin(id, pinReal) {
+    const textSpan = document.getElementById('pin-text-' + id);
+    const icon = document.getElementById('pin-btn-' + id);
+
+    if (textSpan.innerText === '****') {
+        textSpan.innerText = pinReal;
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        textSpan.innerText = '****';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+</script>
 </body>
 </html>

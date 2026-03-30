@@ -27,24 +27,23 @@ $cerca = $stmt->fetch();
     <div id="status_gps" class="alert alert-warning">Verificando sua localização...</div>
 
     <div id="area_ponto" class="area-bloqueada">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <video id="video" autoplay></video>
-                <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
-                
-                <div class="mt-3">
-                    <input type="text" id="matricula" class="form-control form-control-lg mb-2 text-center" placeholder="Sua Matrícula">
-                    <input type="password" id="pin" class="form-control form-control-lg mb-3 text-center" placeholder="Seu PIN (6 dígitos)" maxlength="6">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <video id="video" autoplay></video>
+            <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
+            
+            <div class="mt-3">
+                <input type="text" id="matricula" class="form-control form-control-lg mb-3 text-center" placeholder="Digite sua Matrícula">
                 </div>
 
-                <div class="d-grid gap-2 d-md-block">
-                    <button onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
-                    <button onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
-                    <button onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
-                </div>
+            <div class="d-grid gap-2 d-md-block">
+                <button onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
+                <button onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
+                <button onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <script>
@@ -89,29 +88,28 @@ $cerca = $stmt->fetch();
     }
 
     async function registrarPonto(tipo) {
-        const canvas = document.getElementById('canvas');
-        const video = document.getElementById('video');
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, 400, 300);
-        const fotoAtual = canvas.toDataURL('image/png');
+    const canvas = document.getElementById('canvas');
+    const video = document.getElementById('video');
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, 400, 300);
+    const fotoAtual = canvas.toDataURL('image/png');
 
-        const dados = new FormData();
-        dados.append('tipo', tipo);
-        dados.append('matricula', document.getElementById('matricula').value);
-        dados.append('pin', document.getElementById('pin').value);
-        dados.append('foto', fotoAtual);
-        dados.append('lat', userLat);
-        dados.append('lng', userLng);
+    const dados = new FormData();
+    dados.append('tipo', tipo);
+    dados.append('matricula', document.getElementById('matricula').value);
+    dados.append('foto', fotoAtual); // Foto capturada para comparação
+    dados.append('lat', userLat);
+    dados.append('lng', userLng);
 
-        const response = await fetch('processar_batida.php', { method: 'POST', body: dados });
-        const result = await response.json();
+    const response = await fetch('processar_batida.php', { method: 'POST', body: dados });
+    const result = await response.json();
 
-        if (result.success) {
-            Swal.fire('Sucesso!', result.message, 'success');
-        } else {
-            Swal.fire('Erro!', result.message, 'error');
-        }
+    if (result.success) {
+        Swal.fire('Sucesso!', result.message, 'success');
+    } else {
+        Swal.fire('Erro de Biometria', result.message, 'error');
     }
+}
 </script>
 </body>
 </html>
