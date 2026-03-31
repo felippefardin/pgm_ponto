@@ -6,7 +6,8 @@ $stmt->execute([$matricula]);
 $serv = $stmt->fetch();
 
 if ($serv && $serv['face_token']) {
-    echo json_encode(['success' => true]);
+    // Retorna o sucesso e a string Base64 da imagem
+    echo json_encode(['success' => true, 'face_token' => $serv['face_token']]);
 } else {
     echo json_encode(['success' => false]);
 }
