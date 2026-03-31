@@ -2,24 +2,35 @@
 session_start();
 include 'db.php';
 
-// Busca a cerca atual se já existir
-$stmt = $pdo->prepare("SELECT * FROM cercas_geograficas WHERE instituicao_id = 1 LIMIT 1");
-$stmt->execute();
+// Proteção: Garante que apenas o ADM logado acesse e define o ID correto
+if (!isset($_SESSION['adm_id'])) {
+    header("Location: index.php");
+    exit();
+}
+
+$adm_id = $_SESSION['adm_id'];
+
+// 1. Busca a cerca atual vinculada ao ID do ADM logado
+$stmt = $pdo->prepare("SELECT * FROM cercas_geograficas WHERE instituicao_id = ? LIMIT 1");
+$stmt->execute([$adm_id]);
 $cerca = $stmt->fetch();
 
+// 2. Processa a gravação ou atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $lat = $_POST['lat'];
     $lng = $_POST['lng'];
     $raio = $_POST['raio'];
 
     if ($cerca) {
-        $sql = "UPDATE cercas_geograficas SET latitude = ?, longitude = ?, raio_metros = ? WHERE id = ?";
-        $pdo->prepare($sql)->execute([$lat, $lng, $raio, $cerca['id']]);
+        // Atualiza a cerca existente do ADM logado
+        $sql = "UPDATE cercas_geograficas SET latitude = ?, longitude = ?, raio_metros = ? WHERE instituicao_id = ?";
+        $pdo->prepare($sql)->execute([$lat, $lng, $raio, $adm_id]);
     } else {
-        $sql = "INSERT INTO cercas_geograficas (instituicao_id, latitude, longitude, raio_metros) VALUES (1, ?, ?, ?)";
-        $pdo->prepare($sql)->execute([$lat, $lng, $raio]);
+        // Insere uma nova cerca vinculada ao ID correto do ADM
+        $sql = "INSERT INTO cercas_geograficas (instituicao_id, latitude, longitude, raio_metros) VALUES (?, ?, ?, ?)";
+        $pdo->prepare($sql)->execute([$adm_id, $lat, $lng, $raio]);
     }
-    echo "<script>alert('Cerca geográfica atualizada!'); window.location='dashboard.php';</script>";
+    echo "<script>alert('Cerca geográfica atualizada com sucesso!'); window.location='dashboard.php';</script>";
 }
 ?>
 <!DOCTYPE html>
@@ -36,30 +47,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="bg-light">
 <div class="container py-4">
     <div class="card shadow">
-        <div class="card-header bg-secondary text-white d-flex justify-content-between">
-            <h5>Definir Área Permitida para Batida de Ponto</h5>
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Definir Área Permitida (Geofencing)</h5>
             <a href="dashboard.php" class="btn btn-sm btn-light">Voltar</a>
         </div>
         <div class="card-body">
-            <p class="text-muted">Clique no mapa para definir o centro da instituição e ajuste o raio abaixo.</p>
-            <div id="map" class="mb-3"></div>
+            <p class="text-muted">Clique no mapa para definir o ponto central da sua unidade.</p>
+            <div id="map" class="mb-3 border"></div>
             
             <form method="POST">
-                <div class="row">
+                <div class="row g-3">
                     <div class="col-md-4">
-                        <label>Latitude</label>
-                        <input type="text" name="lat" id="lat" class="form-control" value="<?= $cerca['latitude'] ?? '' ?>" readonly>
+                        <label class="form-label">Latitude</label>
+                        <input type="text" name="lat" id="lat" class="form-control" value="<?= $cerca['latitude'] ?? '' ?>" readonly required>
                     </div>
                     <div class="col-md-4">
-                        <label>Longitude</label>
-                        <input type="text" name="lng" id="lng" class="form-control" value="<?= $cerca['longitude'] ?? '' ?>" readonly>
+                        <label class="form-label">Longitude</label>
+                        <input type="text" name="lng" id="lng" class="form-control" value="<?= $cerca['longitude'] ?? '' ?>" readonly required>
                     </div>
                     <div class="col-md-4">
-                        <label>Raio de Alcance (metros)</label>
-                        <input type="number" name="raio" id="raio" class="form-control" value="<?= $cerca['raio_metros'] ?? '100' ?>">
+                        <label class="form-label">Raio de Alcance (metros)</label>
+                        <input type="number" name="raio" id="raio" class="form-control" value="<?= $cerca['raio_metros'] ?? '100' ?>" required>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-success mt-3 w-100">Salvar Localização</button>
+                <button type="submit" class="btn btn-success mt-4 w-100">
+                    <i class="fa-solid fa-map-pin"></i> Salvar Localização de Trabalho
+                </button>
             </form>
         </div>
     </div>
@@ -67,19 +80,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Inicializa o mapa (Padrão Vila Velha se não houver dados)
-    var initialLat = <?= $cerca['latitude'] ?? -20.3297 ?>;
-    var initialLng = <?= $cerca['longitude'] ?? -40.2944 ?>;
+    // Localização inicial (Usa a salva ou Serra Sede como padrão)
+    var initialLat = <?= $cerca['latitude'] ?? -20.1264 ?>;
+    var initialLng = <?= $cerca['longitude'] ?? -40.3078 ?>;
     var initialRaio = <?= $cerca['raio_metros'] ?? 100 ?>;
 
     var map = L.map('map').setView([initialLat, initialLng], 16);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
     var marker = L.marker([initialLat, initialLng], {draggable: true}).addTo(map);
-    var circle = L.circle([initialLat, initialLng], { radius: initialRaio }).addTo(map);
+    var circle = L.circle([initialLat, initialLng], { radius: initialRaio, color: 'red' }).addTo(map);
 
     function updateInputs(lat, lng) {
         document.getElementById('lat').value = lat.toFixed(8);
@@ -98,5 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         circle.setRadius(this.value);
     });
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/js/all.min.js"></script>
 </body>
 </html>

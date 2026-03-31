@@ -87,6 +87,11 @@ if (!isset($_SESSION['adm_id'])) {
             </a>
         </div>
         <div class="col-md-3">
+    <a href="perfil_adm.php" class="btn btn-dark w-100 btn-dash" style="background-color: #4b5563; border: none;">
+        <i class="fa-solid fa-user-gear"></i> Perfil ADM
+    </a>
+</div>
+        <div class="col-md-3">
     <a href="servidores_arquivados.php" class="btn btn-outline-secondary w-100 btn-dash">
         <i class="fa-solid fa-box-archive"></i> Arquivados
     </a>

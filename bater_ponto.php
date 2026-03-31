@@ -14,6 +14,7 @@ $cerca = $stmt->fetch();
     <title>Bater Ponto - PMG PONTO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         #video { width: 100%; max-width: 400px; border-radius: 15px; border: 5px solid #ccc; transform: scaleX(-1); }
         .area-bloqueada { display: none; }
@@ -53,11 +54,18 @@ $cerca = $stmt->fetch();
     const centroLng = <?= $cerca['longitude'] ?? 0 ?>;
     const raioPermitido = <?= $cerca['raio_metros'] ?? 100 ?>;
 
+    // Carregar modelos de IA ao abrir a página
+    async function carregarModelos() {
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models';
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        console.log("Modelos carregados com sucesso!");
+    }
+    carregarModelos();
+
     // 1. Verificar GPS
     navigator.geolocation.getCurrentPosition(pos => {
         userLat = pos.coords.latitude;
-        userLng = pos.coords.longitude;
-        
+        userLng = pos.coords.longitude;        
         const distancia = calcularDistancia(userLat, userLng, centroLat, centroLng);
         
         if (distancia <= raioPermitido) {
