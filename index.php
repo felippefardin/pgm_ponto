@@ -17,6 +17,9 @@
                 <div class="mb-3">
                     <label>Senha</label>
                     <input type="password" name="senha" class="form-control" required>
+                    <div class="text-end mt-2">
+    <a href="esqueci_senha.php" class="text-decoration-none text-warning">Esqueceu a senha?</a>
+</div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Entrar</button>
             </form>
