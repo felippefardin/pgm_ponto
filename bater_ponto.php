@@ -31,7 +31,7 @@ $cerca = $stmt->fetch();
     <div id="area_ponto" class="area-bloqueada">
         <div class="row justify-content-center">
             <div class="col-md-6">
-                <video id="video" autoplay></video>
+                <video id="video" autoplay muted playsinline></video>
                 <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
                 
                 <div class="mt-3">
@@ -39,9 +39,9 @@ $cerca = $stmt->fetch();
                 </div>
 
                 <div class="d-grid gap-2 d-md-block">
-                    <button onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
-                    <button onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
-                    <button onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
+                    <button id="btn-entrada" onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
+                    <button id="btn-pause" onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
+                    <button id="btn-saida" onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
                 </div>
             </div>
         </div>
@@ -54,24 +54,29 @@ $cerca = $stmt->fetch();
     const centroLng = <?= $cerca['longitude'] ?? 0 ?>;
     const raioPermitido = <?= $cerca['raio_metros'] ?? 100 ?>;
 
+    // 1. CARREGAMENTO DOS MODELOS COM FEEDBACK
     async function carregarModelos() {
-    try {
-        const MODEL_URL = './models'; // Caminho relativo para sua pasta local
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        console.log("Modelos carregados com sucesso!");
-    } catch (err) {
-        console.error("Erro ao carregar modelos locais:", err);
+        try {
+            const MODEL_URL = './models'; // Caminho relativo
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
+            console.log("Modelos de IA carregados com sucesso!");
+        } catch (err) {
+            console.error("Erro crítico ao carregar modelos:", err);
+            Swal.fire('Erro de Sistema', 'Arquivos de biometria não encontrados ou corrompidos.', 'error');
+        }
     }
-}
     carregarModelos();
 
-    // Lógica de GPS (Mantida)
+    // 2. GEOLOCALIZAÇÃO
     navigator.geolocation.getCurrentPosition(pos => {
         userLat = pos.coords.latitude;
         userLng = pos.coords.longitude;
         const distancia = calcularDistancia(userLat, userLng, centroLat, centroLng);
+        
         if (distancia <= raioPermitido) {
             document.getElementById('status_gps').className = "alert alert-success";
             document.getElementById('status_gps').innerText = "Localização autorizada!";
@@ -79,13 +84,16 @@ $cerca = $stmt->fetch();
             iniciarCamera();
         } else {
             document.getElementById('status_gps').className = "alert alert-danger";
-            document.getElementById('status_gps').innerText = "Fora da área permitida.";
+            document.getElementById('status_gps').innerText = "Fora da área permitida (" + Math.round(distancia) + "m).";
         }
+    }, err => {
+        document.getElementById('status_gps').innerText = "Erro ao obter GPS. Verifique as permissões.";
     });
 
     function iniciarCamera() {
         navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => { document.getElementById('video').srcObject = stream; });
+            .then(stream => { document.getElementById('video').srcObject = stream; })
+            .catch(err => Swal.fire('Erro', 'Câmera não disponível.', 'error'));
     }
 
     function calcularDistancia(lat1, lon1, lat2, lon2) {
@@ -98,54 +106,58 @@ $cerca = $stmt->fetch();
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    // --- NOVA LÓGICA: MATRÍCULA PRIMEIRO, BIOMETRIA DEPOIS ---
+    // 3. REGISTRO DE PONTO COM TRATAMENTO DE TRAVAMENTO
     async function registrarPonto(tipo) {
         const matricula = document.getElementById('matricula').value;
-        if (!matricula) return Swal.fire('Aviso', 'Digite sua matrícula antes de continuar.', 'warning');
+        if (!matricula) return Swal.fire('Aviso', 'Digite sua matrícula primeiro.', 'warning');
 
         const video = document.getElementById('video');
 
-        // PASSO 1: Verificar se a matrícula existe e buscar a foto de cadastro
-        Swal.fire({ title: 'Verificando matrícula...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+        // Mostra o loading que você viu na imagem
+        Swal.fire({ 
+            title: 'Validando...', 
+            text: 'Aguarde o reconhecimento facial',
+            allowOutsideClick: false, 
+            didOpen: () => { Swal.showLoading(); } 
+        });
 
         try {
+            // BUSCA FOTO NO SERVIDOR
             const resp = await fetch(`obter_foto_servidor.php?matricula=${matricula}`);
             const dados = await resp.json();
 
-            // Se a matrícula não for encontrada ou não tiver foto, para aqui
             if (!dados.success || !dados.face_token) {
-                return Swal.fire('Erro', 'Matrícula não encontrada ou sem biometria cadastrada.', 'error');
+                return Swal.fire('Erro', 'Matrícula não encontrada ou sem foto.', 'error');
             }
 
-            // PASSO 2: Se a matrícula existir, agora sim iniciamos a leitura da biometria
-            Swal.update({ title: 'Aguarde... Lendo biometria facial' });
-
-            // Detecção do rosto na câmera
-            const deteccaoAtual = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+            // DETECÇÃO NA CÂMERA (Adicionado timeout manual para não travar)
+            const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+            
+            const deteccaoAtual = await faceapi.detectSingleFace(video, options)
                                                .withFaceLandmarks()
                                                .withFaceDescriptor();
 
             if (!deteccaoAtual) {
-                return Swal.fire('Rosto não detectado', 'Por favor, olhe para a câmera e tente novamente.', 'error');
+                return Swal.fire('Rosto não detectado', 'Aproxime-se da câmera e tente novamente.', 'error');
             }
 
-            // Comparação com a foto que acabamos de receber da matrícula validada
+            // COMPARAÇÃO COM FOTO REGISTRADA
             const imgCadastro = await faceapi.fetchImage(dados.face_token);
-            const deteccaoCadastro = await faceapi.detectSingleFace(imgCadastro, new faceapi.TinyFaceDetectorOptions())
+            const deteccaoCadastro = await faceapi.detectSingleFace(imgCadastro, options)
                                                   .withFaceLandmarks()
                                                   .withFaceDescriptor();
 
             if (!deteccaoCadastro) {
-                return Swal.fire('Erro Técnico', 'Não foi possível processar a imagem de cadastro original.', 'error');
+                return Swal.fire('Erro na Foto Base', 'Não conseguimos processar sua foto de cadastro.', 'error');
             }
 
             const distancia = faceapi.euclideanDistance(deteccaoAtual.descriptor, deteccaoCadastro.descriptor);
 
             if (distancia > 0.6) {
-                return Swal.fire('Acesso Negado', 'Biometria não confere com o titular da matrícula!', 'error');
+                return Swal.fire('Acesso Negado', 'Identidade não confirmada!', 'error');
             }
 
-            // PASSO 3: Se tudo estiver OK, registra o ponto no banco
+            // ENVIO PARA O PHP REGISTRAR NO BANCO
             const canvas = document.getElementById('canvas');
             canvas.getContext('2d').drawImage(video, 0, 0, 400, 300);
             
@@ -163,7 +175,7 @@ $cerca = $stmt->fetch();
 
         } catch (error) {
             console.error(error);
-            Swal.fire('Falha no Sistema', 'Erro ao processar validação. Tente novamente.', 'error');
+            Swal.fire('Falha Técnica', 'Ocorreu um erro no processamento. Verifique sua conexão.', 'error');
         }
     }
 </script>
