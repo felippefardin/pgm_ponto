@@ -14,7 +14,7 @@ $cerca = $stmt->fetch();
     <title>Bater Ponto - PMG PONTO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         #video { width: 100%; max-width: 400px; border-radius: 15px; border: 5px solid #ccc; transform: scaleX(-1); }
         .area-bloqueada { display: none; }
@@ -55,16 +55,16 @@ $cerca = $stmt->fetch();
     const raioPermitido = <?= $cerca['raio_metros'] ?? 100 ?>;
 
     async function carregarModelos() {
-        try {
-            const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
-            await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-            await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-            console.log("Sistemas de Biometria Prontos!");
-        } catch (err) {
-            console.error("Erro ao carregar modelos: ", err);
-        }
+    try {
+        const MODEL_URL = './models'; // Caminho relativo para sua pasta local
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        console.log("Modelos carregados com sucesso!");
+    } catch (err) {
+        console.error("Erro ao carregar modelos locais:", err);
     }
+}
     carregarModelos();
 
     // Lógica de GPS (Mantida)
