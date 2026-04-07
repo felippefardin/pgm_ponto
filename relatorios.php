@@ -60,6 +60,7 @@ $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status
     <meta charset="UTF-8">
     <title>Relatório de Ponto - PMG</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
     <style>
         @media print {
@@ -68,11 +69,34 @@ $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status
             body { background: white !important; }
         }
         .folha-ponto { font-family: 'Courier New', Courier, monospace; }
+        body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.container {
+    flex: 1;
+}
     </style>
 </head>
 <body class="bg-light">
 
+<nav class="navbar navbar-dark bg-info mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">
+            <i class="fa-solid fa-file-lines"></i> Relatório
+        </span>
+        <a href="dashboard.php" class="btn btn-outline-light btn-sm">
+            <i class="fa-solid fa-arrow-left"></i> Voltar ao Painel
+        </a>
+    </div>
+</nav>
+
 <div class="container py-4">
+    <div class="container py-4">
+
+    <div class="card shadow mb-4 no-print">
+        <div class="card-body">
     <div class="card shadow mb-4 no-print">
         <div class="card-body">
             <form method="GET" class="row g-3">
@@ -168,10 +192,17 @@ $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status
             <button onclick="window.print()" class="btn btn-danger">
                 <i class="fa-solid fa-file-pdf"></i> Baixar/Imprimir PDF
             </button>
-        </div>
+        </div>        
     </div>
     <?php endif; ?>
 </div>
+
+<div class="div">
+    
+</div>
+
+
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.js"></script>
 </body>

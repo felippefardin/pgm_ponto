@@ -15,6 +15,7 @@ if (!isset($_SESSION['adm_id'])) {
     <title>Painel Administrativo - PMG PONTO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css">
     <style>
         .btn-dash {
             height: 120px;
@@ -32,14 +33,40 @@ if (!isset($_SESSION['adm_id'])) {
             font-size: 2rem;
             margin-bottom: 10px;
         }
+        /* Ajuste para o Footer colar no fundo se a página for pequena */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.container {
+    flex: 1;
+}
+
+/* Estilo do Footer */
+footer {
+    background: #ffffff;
+    border-top: 1px solid #dee2e6;
+    padding: 2rem 0;
+}
+footer i {
+    transition: color 0.3s;
+}
+footer a:hover i {
+    color: #0d6efd !important;
+}
     </style>
 </head>
 <body class="bg-light">
 
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1">PMG_PONTO | Dashboard</span>
-        <a href="logout.php" class="btn btn-outline-danger btn-sm"><i class="fa-solid fa-right-from-bracket"></i> Sair</a>
+        <span class="navbar-brand mb-0 h1">
+            <i class="fa-solid fa-gauge-high"></i> PMG_PONTO | DASHBOARD
+        </span>
+        <a href="logout.php" class="btn btn-outline-danger btn-sm">
+            <i class="fa-solid fa-right-from-bracket"></i> Sair
+        </a>
     </div>
 </nav>
 
@@ -104,8 +131,41 @@ if (!isset($_SESSION['adm_id'])) {
     </div>
 </div>
 
-<footer class="text-center mt-5 text-muted">
-    <small>&copy; 2026 PMG PONTO - Sistema de Controle Biométrico</small>
+<footer class="mt-5">
+    <div class="container text-center">
+        <div class="row align-items-center">
+            <div class="col-md-4 text-md-start mb-3 mb-md-0">
+                <span class="fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left"></i> PMG_PONTO</span>
+                <br>
+                <small class="text-muted">Gestão de Frequência Inteligente</small>
+            </div>
+            
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="#" class="text-muted text-decoration-none"><i class="fa-solid fa-shield-halved fa-lg"></i></a>
+                    <a href="#" class="text-muted text-decoration-none"><i class="fa-solid fa-circle-question fa-lg"></i></a>
+                    <a href="#" class="text-muted text-decoration-none"><i class="fa-solid fa-envelope fa-lg"></i></a>
+                </div>
+            </div>
+
+            <div class="col-md-4 text-md-end">
+                <small class="text-muted">&copy; 2026 Todos os direitos reservados</small>
+                <br>
+                <small class="fw-bold" style="color: #6c757d;">Desenvolvido para PMG</small>
+            </div>
+        </div>
+        
+        <hr class="my-4 opacity-25">
+        
+        <div class="row">
+            <div class="col">
+                <p class="mb-0 small text-muted">
+                    <i class="fa-solid fa-lock"></i> Conexão Segura | 
+                    <i class="fa-solid fa-location-dot"></i> Unidade: Procuradoria Geral
+                </p>
+            </div>
+        </div>
+    </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
