@@ -40,6 +40,12 @@ $pontos_hoje = $stmt->fetchAll();
             padding: 2rem 0;
             margin-top: 3rem;
         }
+        .localizacao-texto {
+            display: block;
+            font-size: 0.85rem;
+            color: #0d6efd;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -74,7 +80,7 @@ $pontos_hoje = $stmt->fetchAll();
                         </thead>
                         <tbody>
                             <?php if (count($pontos_hoje) > 0): ?>
-                                <?php foreach ($pontos_hoje as $p): ?>
+                                <?php foreach ($pontos_hoje as $index => $p): ?>
                                 <tr>
                                     <td><strong><?= date('H:i:s', strtotime($p['data_hora'])) ?></strong></td>
                                     <td><?= htmlspecialchars($p['nome_completo']) ?></td>
@@ -86,7 +92,11 @@ $pontos_hoje = $stmt->fetchAll();
                                         <span class="badge bg-<?= $classe ?>"><?= ucfirst($p['tipo']) ?></span>
                                     </td>
                                     <td>
-                                        <small>Lat: <?= $p['latitude_registro'] ?>, Lng: <?= $p['longitude_registro'] ?></small>
+                                        <span id="local-<?= $index ?>" class="localizacao-texto">Buscando endereço...</span>
+                                        <small class="text-muted" style="font-size: 0.7rem;">
+                                            Lat: <span id="lat-<?= $index ?>"><?= $p['latitude_registro'] ?></span>, 
+                                            Lng: <span id="lng-<?= $index ?>"><?= $p['longitude_registro'] ?></span>
+                                        </small>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -141,5 +151,42 @@ $pontos_hoje = $stmt->fetchAll();
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Busca todos os campos de localização na tabela
+    const locais = document.querySelectorAll('[id^="local-"]');
+
+    locais.forEach((elemento) => {
+        const index = elemento.id.split('-')[1];
+        const lat = document.getElementById(`lat-${index}`).innerText;
+        const lng = document.getElementById(`lng-${index}`).innerText;
+
+        if (lat && lng && lat !== '0') {
+            // Chamada para API do OpenStreetMap (Nominatim)
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.display_name) {
+                        // Exibe uma versão curta do endereço (Rua, Bairro ou Prédio)
+                        const partes = data.address;
+                        const localAmigavel = partes.amenity || partes.building || partes.road || "Endereço Identificado";
+                        const bairro = partes.suburb || partes.city_district || "";
+                        
+                        elemento.innerText = `${localAmigavel}${bairro ? ' - ' + bairro : ''}`;
+                    } else {
+                        elemento.innerText = "Local não identificado";
+                    }
+                })
+                .catch(() => {
+                    elemento.innerText = "Erro ao carregar nome";
+                });
+        } else {
+            elemento.innerText = "Sem sinal de GPS";
+        }
+    });
+});
+</script>
+
 </body>
 </html>

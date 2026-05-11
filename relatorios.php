@@ -2,54 +2,69 @@
 session_start();
 include 'db.php';
 
-$servidor_id = $_GET['servidor'] ?? '';
-$data_inicio = $_GET['data_inicio'] ?? date('Y-m-01'); // Padrão: primeiro dia do mês atual
-$data_fim = $_GET['data_fim'] ?? date('Y-m-t');      // Padrão: último dia do mês atual
+$servidor_id = $_GET['servidor'] ?? ''; // Pode ser vazio para "Todos"
+$data_inicio = $_GET['data_inicio'] ?? date('Y-m-01');
+$data_fim = $_GET['data_fim'] ?? date('Y-m-t');
 $export = $_GET['export'] ?? '';
 
+// Função auxiliar para calcular a diferença de horas
+function calcularHoras($entrada, $saida) {
+    if (!$entrada || !$saida) return 0;
+    $ini = new DateTime($entrada);
+    $fim = new DateTime($saida);
+    $diff = $ini->diff($fim);
+    return ($diff->h + ($diff->i / 60));
+}
+
 $pontos = [];
-if ($servidor_id) {
-    // Busca os pontos dentro do intervalo de datas selecionado
-    $stmt = $pdo->prepare("
-        SELECT p.*, s.nome_completo, s.matricula 
+$params = [$data_inicio, $data_fim];
+$sql = "SELECT p.*, s.nome_completo, s.matricula 
         FROM pontos p 
         JOIN servidores s ON p.servidor_id = s.id 
-        WHERE s.id = ? AND DATE(p.data_hora) BETWEEN ? AND ?
-        ORDER BY p.data_hora ASC
-    ");
-    $stmt->execute([$servidor_id, $data_inicio, $data_fim]);
-    $pontos = $stmt->fetchAll();
-    
-    $stmt_serv = $pdo->prepare("SELECT nome_completo, matricula FROM servidores WHERE id = ?");
-    $stmt_serv->execute([$servidor_id]);
-    $info_servidor = $stmt_serv->fetch();
+        WHERE DATE(p.data_hora) BETWEEN ? AND ?";
 
-    // LÓGICA DE EXPORTAÇÃO CSV
-    if ($export === 'csv' && $info_servidor) {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=relatorio_ponto_'.$info_servidor['matricula'].'.csv');
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['Data', 'Entrada', 'Pausa', 'Saida', 'Matricula', 'Nome']);
+if ($servidor_id !== '') {
+    $sql .= " AND s.id = ?";
+    $params[] = $servidor_id;
+}
 
-        $dias_csv = [];
-        foreach ($pontos as $p) {
-            $data = date('d/m/Y', strtotime($p['data_hora']));
-            $dias_csv[$data][$p['tipo']] = date('H:i', strtotime($p['data_hora']));
-        }
+$sql .= " ORDER BY s.nome_completo ASC, p.data_hora ASC";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$pontos = $stmt->fetchAll();
 
-        foreach ($dias_csv as $data => $tipos) {
+// Agrupamento por Servidor -> Data -> Tipo
+$relatorio_agrupado = [];
+foreach ($pontos as $p) {
+    $s_id = $p['servidor_id'];
+    $data = date('d/m/Y', strtotime($p['data_hora']));
+    $relatorio_agrupado[$s_id]['info'] = ['nome' => $p['nome_completo'], 'matricula' => $p['matricula']];
+    $relatorio_agrupado[$s_id]['dias'][$data][$p['tipo']] = $p['data_hora'];
+}
+
+// LÓGICA DE EXPORTAÇÃO CSV (Simplificada para todos ou um)
+if ($export === 'csv' && !empty($relatorio_agrupado)) {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=relatorio_ponto_geral.csv');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Servidor', 'Matricula', 'Data', 'Entrada', 'Pausa', 'Saida', 'Total Horas Dia']);
+
+    foreach ($relatorio_agrupado as $id => $dados) {
+        foreach ($dados['dias'] as $data => $tipos) {
+            $h_total = calcularHoras($tipos['entrada'] ?? null, $tipos['saida'] ?? null);
             fputcsv($output, [
-                $data, 
-                $tipos['entrada'] ?? '--:--', 
-                $tipos['pausa'] ?? '--:--', 
-                $tipos['saida'] ?? '--:--', 
-                $info_servidor['matricula'], 
-                $info_servidor['nome_completo']
+                $dados['info']['nome'],
+                $dados['info']['matricula'],
+                $data,
+                isset($tipos['entrada']) ? date('H:i', strtotime($tipos['entrada'])) : '--:--',
+                isset($tipos['pausa']) ? date('H:i', strtotime($tipos['pausa'])) : '--:--',
+                isset($tipos['saida']) ? date('H:i', strtotime($tipos['saida'])) : '--:--',
+                number_format($h_total, 2)
             ]);
         }
-        fclose($output);
-        exit();
     }
+    fclose($output);
+    exit();
 }
 
 $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status != 'arquivado'")->fetchAll();
@@ -58,52 +73,30 @@ $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Relatório de Ponto - PMG</title>
+    <title>Relatórios de Ponto</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
     <style>
-        @media print {
-            .no-print { display: none !important; }
-            .card { border: none !important; box-shadow: none !important; }
-            body { background: white !important; }
-        }
-        .folha-ponto { font-family: 'Courier New', Courier, monospace; }
-        body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
-.container {
-    flex: 1;
-}
+        @media print { .no-print { display: none !important; } .page-break { page-break-after: always; } }
+        .folha-ponto { font-family: 'Courier New', monospace; font-size: 0.9rem; }
     </style>
 </head>
 <body class="bg-light">
 
-<nav class="navbar navbar-dark bg-info mb-4">
+<nav class="navbar navbar-dark bg-info mb-4 no-print">
     <div class="container-fluid">
-        <span class="navbar-brand mb-0 h1">
-            <i class="fa-solid fa-file-lines"></i> Relatório
-        </span>
-        <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-            <i class="fa-solid fa-arrow-left"></i> Voltar ao Painel
-        </a>
+        <span class="navbar-brand">Relatório de Frequência</span>
+        <a href="dashboard.php" class="btn btn-outline-light btn-sm">Voltar</a>
     </div>
 </nav>
 
 <div class="container py-4">
-    <div class="container py-4">
-
-    <div class="card shadow mb-4 no-print">
-        <div class="card-body">
     <div class="card shadow mb-4 no-print">
         <div class="card-body">
             <form method="GET" class="row g-3">
                 <div class="col-md-3">
                     <label>Servidor</label>
-                    <select name="servidor" class="form-select" required>
-                        <option value="">Selecione...</option>
+                    <select name="servidor" class="form-select">
+                        <option value="">TODOS OS SERVIDORES</option>
                         <?php foreach($servidores as $s): ?>
                             <option value="<?= $s['id'] ?>" <?= $servidor_id == $s['id'] ? 'selected' : '' ?>><?= $s['nome_completo'] ?></option>
                         <?php endforeach; ?>
@@ -111,99 +104,80 @@ $servidores = $pdo->query("SELECT id, nome_completo FROM servidores WHERE status
                 </div>
                 <div class="col-md-3">
                     <label>Data Inicial</label>
-                    <input type="date" name="data_inicio" class="form-control" value="<?= $data_inicio ?>" required>
+                    <input type="date" name="data_inicio" class="form-control" value="<?= $data_inicio ?>">
                 </div>
                 <div class="col-md-3">
                     <label>Data Final</label>
-                    <input type="date" name="data_fim" class="form-control" value="<?= $data_fim ?>" required>
+                    <input type="date" name="data_fim" class="form-control" value="<?= $data_fim ?>">
                 </div>
                 <div class="col-md-3 d-flex align-items-end gap-2">
-                    <button type="submit" class="btn btn-primary flex-grow-1">Filtrar</button>
-                    <?php if($servidor_id): ?>
-                        <a href="?servidor=<?= $servidor_id ?>&data_inicio=<?= $data_inicio ?>&data_fim=<?= $data_fim ?>&export=csv" class="btn btn-success">
-                            <i class="fa-solid fa-file-csv"></i> CSV
-                        </a>
-                    <?php endif; ?>
+                    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                    <a href="?<?= $_SERVER['QUERY_STRING'] ?>&export=csv" class="btn btn-success">CSV</a>
                 </div>
             </form>
         </div>
     </div>
 
-    <?php if ($servidor_id && $info_servidor): ?>
-    <div class="card shadow p-4 folha-ponto">
-        <div class="text-center mb-4">
-            <h4>PROCURADORIA GERAL DO MUNICÍPIO</h4>
-            <h5>Espelho de Ponto Individual</h5>
-            <p class="small text-muted">Período: <?= date('d/m/Y', strtotime($data_inicio)) ?> até <?= date('d/m/Y', strtotime($data_fim)) ?></p>
-        </div>
+    <?php if (empty($relatorio_agrupado)): ?>
+        <div class="alert alert-warning">Nenhum registro encontrado.</div>
+    <?php else: ?>
+        <?php foreach ($relatorio_agrupado as $id_serv => $conteudo): 
+            $total_horas_mes = 0;
+        ?>
+        <div class="card shadow p-4 mb-5 folha-ponto page-break">
+            <div class="text-center mb-4">
+                <h4>PROCURADORIA GERAL DO MUNICÍPIO</h4>
+                <h5>Espelho de Ponto Individual</h5>
+                <p>Período: <?= date('d/m/Y', strtotime($data_inicio)) ?> a <?= date('d/m/Y', strtotime($data_fim)) ?></p>
+            </div>
 
-        <div class="mb-3 border-bottom pb-2">
-            <p><strong>Servidor:</strong> <?= htmlspecialchars($info_servidor['nome_completo']) ?> | <strong>Matrícula:</strong> <?= htmlspecialchars($info_servidor['matricula']) ?></p>
-        </div>
+            <p><strong>Servidor:</strong> <?= $conteudo['info']['nome'] ?> | <strong>Matrícula:</strong> <?= $conteudo['info']['matricula'] ?></p>
 
-        <table class="table table-bordered table-sm">
-            <thead class="table-light">
-                <tr>
-                    <th>Data</th>
-                    <th>Entrada</th>
-                    <th>Pausa</th>
-                    <th>Saída</th>
-                    <th>Observações</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $dias = [];
-                foreach ($pontos as $p) {
-                    $data = date('d/m/Y', strtotime($p['data_hora']));
-                    $dias[$data][$p['tipo']] = date('H:i', strtotime($p['data_hora']));
-                }
-
-                if (count($dias) > 0):
-                    foreach ($dias as $data => $tipos): ?>
+            <table class="table table-bordered table-sm">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Entrada</th>
+                        <th>Pausa</th>
+                        <th>Saída</th>
+                        <th>Horas do Dia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($conteudo['dias'] as $data => $tipos): 
+                        $h_dia = calcularHoras($tipos['entrada'] ?? null, $tipos['saida'] ?? null);
+                        $total_horas_mes += $h_dia;
+                    ?>
                     <tr>
                         <td><?= $data ?></td>
-                        <td><?= $tipos['entrada'] ?? '--:--' ?></td>
-                        <td><?= $tipos['pausa'] ?? '--:--' ?></td>
-                        <td><?= $tipos['saida'] ?? '--:--' ?></td>
-                        <td class="small"><?= (isset($tipos['entrada']) && isset($tipos['saida'])) ? '' : 'Falta batida' ?></td>
+                        <td><?= isset($tipos['entrada']) ? date('H:i', strtotime($tipos['entrada'])) : '--:--' ?></td>
+                        <td><?= isset($tipos['pausa']) ? date('H:i', strtotime($tipos['pausa'])) : '--:--' ?></td>
+                        <td><?= isset($tipos['saida']) ? date('H:i', strtotime($tipos['saida'])) : '--:--' ?></td>
+                        <td><?= number_format($h_dia, 2) ?>h</td>
                     </tr>
-                    <?php endforeach;
-                else: ?>
-                    <tr>
-                        <td colspan="5" class="text-center text-muted">Nenhum registro encontrado para este período.</td>
+                    <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr class="table-secondary">
+                        <td colspan="4" class="text-end"><strong>Total de Horas no Período:</strong></td>
+                        <td><strong><?= number_format($total_horas_mes, 2) ?>h</strong></td>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                </tfoot>
+            </table>
 
-        <div class="row mt-5 pt-4">
-            <div class="col-6 text-center">
-                <hr style="width: 80%; margin: auto;">
-                <p>Assinatura do Servidor</p>
-            </div>
-            <div class="col-6 text-center">
-                <hr style="width: 80%; margin: auto;">
-                <p>Visto Chefia Imediata</p>
+            <div class="row mt-5">
+                <div class="col-6 text-center">_________________________<br>Assinatura Servidor</div>
+                <div class="col-6 text-center">_________________________<br>Visto Chefia</div>
             </div>
         </div>
-        
-        <div class="text-center mt-4 no-print">
-            <button onclick="window.print()" class="btn btn-danger">
-                <i class="fa-solid fa-file-pdf"></i> Baixar/Imprimir PDF
+        <?php endforeach; ?>
+
+        <div class="text-center no-print mb-5">
+            <button onclick="window.print()" class="btn btn-danger btn-lg">
+                <i class="fa-solid fa-print"></i> Imprimir Tudo / Salvar PDF
             </button>
-        </div>        
-    </div>
+        </div>
     <?php endif; ?>
 </div>
-
-<div class="div">
-    
-</div>
-
-
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.js"></script>
 </body>
 </html>
