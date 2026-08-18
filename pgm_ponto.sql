@@ -1,4 +1,4 @@
-CREATE DATABASE IF NOT EXISTS pgm_ponto;
+CREATE DATABASE IF NOT EXISTS pgm_ponto CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE pgm_ponto;
 
 -- 1. Tabela de Instituições (Administradores)
@@ -32,6 +32,7 @@ CREATE TABLE cercas_geograficas (
     latitude DECIMAL(10, 8) NOT NULL,
     longitude DECIMAL(11, 8) NOT NULL,
     raio_metros INT DEFAULT 100, -- Raio permitido para bater ponto
+    UNIQUE KEY uk_cerca_instituicao (instituicao_id),
     FOREIGN KEY (instituicao_id) REFERENCES instituicoes(id)
 );
 

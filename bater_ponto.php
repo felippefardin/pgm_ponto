@@ -1,11 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-
-// Busca a cerca geográfica permitida
-$stmt = $pdo->prepare("SELECT latitude, longitude, raio_metros FROM cercas_geograficas LIMIT 1");
-$stmt->execute();
-$cerca = $stmt->fetch();
+require_once 'localizacao.php';
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -50,9 +46,10 @@ footer a:hover i {
         <span class="navbar-brand mb-0 h1">
             <i class="fa-solid fa-tower-broadcast"></i> Monitoramento ao Vivo
         </span>                  
-        <a href="dashboard.php" class="btn btn-outline-light btn-sm">
-            <i class="fa-solid fa-arrow-left"></i> Voltar ao Painel
-        </a>
+        <div class="d-flex gap-2">
+            <a href="login_servidor.php" class="btn btn-light btn-sm"><i class="fa-solid fa-user me-1"></i>Meus pontos</a>
+            <a href="index.php" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-user-shield me-1"></i>Administrador</a>
+        </div>
     </div>
 </nav>
 
@@ -60,7 +57,15 @@ footer a:hover i {
 
     <h2 class="mb-4">Controle de Ponto Biométrico</h2>
     
-    <div id="status_gps" class="alert alert-warning">Verificando sua localização...</div>
+    <div class="row justify-content-center mb-3">
+        <div class="col-md-6">
+            <input type="text" id="matricula" class="form-control form-control-lg mb-2 text-center" placeholder="Digite sua Matrícula">
+            <button type="button" id="btn-validar-local" onclick="validarLocalizacao()" class="btn btn-primary w-100">
+                <i class="fa-solid fa-location-crosshairs me-2"></i>Validar localização
+            </button>
+        </div>
+    </div>
+    <div id="status_gps" class="alert alert-warning">Informe sua matrícula para validar a localização.</div>
 
     <div id="area_ponto" class="area-bloqueada">
         <div class="row justify-content-center">
@@ -68,13 +73,9 @@ footer a:hover i {
                 <video id="video" autoplay muted playsinline></video>
                 <canvas id="canvas" style="display:none;" width="400" height="300"></canvas>
                 
-                <div class="mt-3">
-                    <input type="text" id="matricula" class="form-control form-control-lg mb-3 text-center" placeholder="Digite sua Matrícula">
-                </div>
-
                 <div class="d-grid gap-2 d-md-block">
                     <button id="btn-entrada" onclick="registrarPonto('entrada')" class="btn btn-success btn-ponto col-md-3">Entrada</button>
-                    <button id="btn-pause" onclick="registrarPonto('pause')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
+                    <button id="btn-pause" onclick="registrarPonto('pausa')" class="btn btn-warning btn-ponto col-md-3">Pausa</button>
                     <button id="btn-saida" onclick="registrarPonto('saida')" class="btn btn-danger btn-ponto col-md-3">Saída</button>
                 </div>
             </div>
@@ -123,9 +124,7 @@ footer a:hover i {
 
 <script>
     let userLat, userLng;
-    const centroLat = <?= $cerca['latitude'] ?? 0 ?>;
-    const centroLng = <?= $cerca['longitude'] ?? 0 ?>;
-    const raioPermitido = <?= $cerca['raio_metros'] ?? 100 ?>;
+    let centroLat, centroLng, raioPermitido;
 
     // 1. CARREGAMENTO DOS MODELOS COM FEEDBACK
     async function carregarModelos() {
@@ -145,23 +144,49 @@ footer a:hover i {
     carregarModelos();
 
     // 2. GEOLOCALIZAÇÃO
-    navigator.geolocation.getCurrentPosition(pos => {
-        userLat = pos.coords.latitude;
-        userLng = pos.coords.longitude;
-        const distancia = calcularDistancia(userLat, userLng, centroLat, centroLng);
-        
-        if (distancia <= raioPermitido) {
-            document.getElementById('status_gps').className = "alert alert-success";
-            document.getElementById('status_gps').innerText = "Localização autorizada!";
-            document.getElementById('area_ponto').style.display = "block";
-            iniciarCamera();
-        } else {
-            document.getElementById('status_gps').className = "alert alert-danger";
-            document.getElementById('status_gps').innerText = "Fora da área permitida (" + Math.round(distancia) + "m).";
+    async function validarLocalizacao() {
+        const matricula = document.getElementById('matricula').value.trim();
+        const status = document.getElementById('status_gps');
+        const botao = document.getElementById('btn-validar-local');
+        document.getElementById('area_ponto').style.display = 'none';
+        if (!matricula) return Swal.fire('Aviso', 'Informe sua matrícula.', 'warning');
+
+        botao.disabled = true;
+        status.className = 'alert alert-warning';
+        status.innerText = 'Obtendo configuração e localização...';
+        try {
+            const resposta = await fetch('configuracao_localizacao.php?matricula=' + encodeURIComponent(matricula));
+            const config = await resposta.json();
+            if (!config.success) throw new Error(config.message);
+            centroLat = config.latitude;
+            centroLng = config.longitude;
+            raioPermitido = config.raio_metros;
+
+            navigator.geolocation.getCurrentPosition(pos => {
+                userLat = pos.coords.latitude;
+                userLng = pos.coords.longitude;
+                const distancia = calcularDistancia(userLat, userLng, centroLat, centroLng);
+                if (distancia <= raioPermitido) {
+                    status.className = 'alert alert-success';
+                    status.innerText = 'Localização autorizada! Distância aproximada: ' + Math.round(distancia) + ' m.';
+                    document.getElementById('area_ponto').style.display = 'block';
+                    iniciarCamera();
+                } else {
+                    status.className = 'alert alert-danger';
+                    status.innerText = 'Fora da área permitida (' + Math.round(distancia) + ' m; limite de ' + raioPermitido + ' m).';
+                }
+                botao.disabled = false;
+            }, () => {
+                status.className = 'alert alert-danger';
+                status.innerText = 'Não foi possível obter o GPS. Verifique a permissão de localização.';
+                botao.disabled = false;
+            }, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+        } catch (erro) {
+            status.className = 'alert alert-danger';
+            status.innerText = erro.message || 'Não foi possível validar a localização.';
+            botao.disabled = false;
         }
-    }, err => {
-        document.getElementById('status_gps').innerText = "Erro ao obter GPS. Verifique as permissões.";
-    });
+    }
 
     function iniciarCamera() {
         navigator.mediaDevices.getUserMedia({ video: true })

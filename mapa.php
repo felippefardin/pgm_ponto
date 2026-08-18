@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+require_once 'localizacao.php';
 
 // Proteção: Garante que apenas o ADM logado acesse e define o ID correto
 if (!isset($_SESSION['adm_id'])) {
@@ -8,27 +9,31 @@ if (!isset($_SESSION['adm_id'])) {
     exit();
 }
 
-$adm_id = $_SESSION['adm_id'];
-
-// 1. Busca a cerca atual vinculada ao ID do ADM logado
-$stmt = $pdo->prepare("SELECT * FROM cercas_geograficas WHERE instituicao_id = ? LIMIT 1");
+$adm_id = (int) $_SESSION['adm_id'];
+$stmt = $pdo->prepare("SELECT latitude, longitude, raio_metros FROM cercas_geograficas WHERE instituicao_id = ? LIMIT 1");
 $stmt->execute([$adm_id]);
-$cerca = $stmt->fetch();
+$cerca = $stmt->fetch() ?: [
+    'latitude' => LOCALIZACAO_LATITUDE,
+    'longitude' => LOCALIZACAO_LONGITUDE,
+    'raio_metros' => LOCALIZACAO_RAIO_METROS,
+];
 
-// 2. Processa a gravação ou atualização
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $lat = $_POST['lat'];
-    $lng = $_POST['lng'];
-    $raio = $_POST['raio'];
+    $lat = filter_var($_POST['lat'] ?? null, FILTER_VALIDATE_FLOAT);
+    $lng = filter_var($_POST['lng'] ?? null, FILTER_VALIDATE_FLOAT);
+    $raio = filter_var($_POST['raio'] ?? null, FILTER_VALIDATE_INT);
 
-    if ($cerca) {
-        $sql = "UPDATE cercas_geograficas SET latitude = ?, longitude = ?, raio_metros = ? WHERE instituicao_id = ?";
-        $pdo->prepare($sql)->execute([$lat, $lng, $raio, $adm_id]);
+    if ($lat === false || $lng === false || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180
+        || $raio === false || $raio < 10 || $raio > 5000) {
+        $erro = 'Informe uma localização válida e um raio entre 10 e 5.000 metros.';
     } else {
-        $sql = "INSERT INTO cercas_geograficas (instituicao_id, latitude, longitude, raio_metros) VALUES (?, ?, ?, ?)";
+        $sql = "INSERT INTO cercas_geograficas (instituicao_id, latitude, longitude, raio_metros)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE latitude = VALUES(latitude), longitude = VALUES(longitude), raio_metros = VALUES(raio_metros)";
         $pdo->prepare($sql)->execute([$adm_id, $lat, $lng, $raio]);
+        header('Location: mapa.php?salvo=1');
+        exit;
     }
-    echo "<script>alert('Cerca geográfica atualizada com sucesso!'); window.location='dashboard.php';</script>";
 }
 ?>
 <!DOCTYPE html>
@@ -92,12 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="alert alert-info d-flex align-items-center" role="alert">
                     <i class="fa-solid fa-circle-info me-3 fa-lg"></i>
                     <div>
-                        Clique no mapa para posicionar o marcador no centro da unidade. O círculo vermelho representa a área onde o servidor poderá registrar o ponto.
+                        Clique no mapa ou arraste o marcador para definir o centro. Ajuste abaixo a distância permitida.
                     </div>
                 </div>
 
                 <div id="map" class="mb-4"></div>
                 
+                <?php if (isset($_GET['salvo'])): ?><div class="alert alert-success">Localização e distância atualizadas com sucesso.</div><?php endif; ?>
+                <?php if (!empty($erro)): ?><div class="alert alert-danger"><?= htmlspecialchars($erro) ?></div><?php endif; ?>
                 <form method="POST">
                     <div class="row g-3 p-3 bg-white border rounded shadow-sm">
                         <div class="col-md-4">
@@ -118,14 +125,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <label class="form-label">Raio de Alcance (metros)</label>
                             <div class="input-group">
                                 <span class="input-group-text bg-white"><i class="fa-solid fa-ruler-combined"></i></span>
-                                <input type="number" name="raio" id="raio" class="form-control" value="<?= $cerca['raio_metros'] ?? '100' ?>" required>
+                                <input type="number" name="raio" id="raio" class="form-control" min="10" max="5000" value="<?= (int) $cerca['raio_metros'] ?>" required>
                             </div>
                         </div>
-                        <div class="col-12 mt-4">
-                            <button type="submit" class="btn btn-success btn-lg w-100 shadow-sm">
-                                <i class="fa-solid fa-floppy-disk me-2"></i> Salvar Perímetro de Trabalho
-                            </button>
-                        </div>
+                    </div>
+                    <div class="d-grid mt-3">
+                        <button type="submit" class="btn btn-success btn-lg"><i class="fa-solid fa-floppy-disk me-2"></i>Salvar localização permitida</button>
                     </div>
                 </form>
             </div>
@@ -197,23 +202,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     map.on('click', function(e) {
-        var lat = e.latlng.lat;
-        var lng = e.latlng.lng;
         marker.setLatLng(e.latlng);
         circle.setLatLng(e.latlng);
-        updateInputs(lat, lng);
+        updateInputs(e.latlng.lat, e.latlng.lng);
     });
 
-    marker.on('dragend', function(e) {
-        var lat = marker.getLatLng().lat;
-        var lng = marker.getLatLng().lng;
-        circle.setLatLng(marker.getLatLng());
-        updateInputs(lat, lng);
+    marker.on('dragend', function() {
+        var posicao = marker.getLatLng();
+        circle.setLatLng(posicao);
+        updateInputs(posicao.lat, posicao.lng);
     });
 
     document.getElementById('raio').addEventListener('input', function() {
-        circle.setRadius(this.value);
+        circle.setRadius(Number(this.value) || 10);
     });
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

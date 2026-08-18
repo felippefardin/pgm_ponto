@@ -4,7 +4,8 @@ include 'db.php';
 
 // Proteção simples: Se não estiver logado, volta para o login
 if (!isset($_SESSION['adm_id'])) {
-    // header("Location: index.php"); // Descomente após testar o login
+    header("Location: index.php");
+    exit;
 }
 ?>
 <!DOCTYPE html>

@@ -41,6 +41,12 @@
             </form>
             <hr>
             <p class="text-center">Não tem conta? <a href="cadastro.php">Fazer Cadastro</a></p>
+            <a href="login_servidor.php" class="btn btn-success w-100 mb-2">
+                <i class="fa-solid fa-user-clock me-2"></i>Acesso do Servidor
+            </a>
+            <a href="bater_ponto.php" class="btn btn-outline-primary w-100">
+                <i class="fa-solid fa-fingerprint me-2"></i>Bater ponto sem login
+            </a>
         </div>
     </div>
 
